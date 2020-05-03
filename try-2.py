@@ -8,10 +8,9 @@ from flask_cors import CORS, cross_origin
 from flask_restful import Resource, Api
 from json import dumps
 #from flask_jsonpify import jsonify
+import yfinance as yf
 
-import pandas as pd
 import datetime
-import pandas_datareader.data as web
 import math
 import pandas as pd
 import numpy as np
@@ -21,6 +20,21 @@ from pandas import Series, DataFrame
 import yfinance as yf
 
 from matplotlib import style
+
+import math
+import numpy as np
+from sklearn import preprocessing, svm
+from sklearn.model_selection import train_test_split
+
+
+from sklearn.linear_model import LinearRegression
+from sklearn.neighbors import KNeighborsRegressor
+
+from sklearn.linear_model import Ridge
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import make_pipeline
+
+import json
 
 app = Flask(__name__)
 api = Api(app)
@@ -79,6 +93,71 @@ class Histo(Resource):
         
         return send_file('histo.png', mimetype='image/gif')
 
+
+class PortfolioImage(Resource):
+    def get(self):
+        
+        return send_file('portfolio.png', mimetype='image/gif')
+
+# http://localhost:5000/portfolio?c1=AMZN&c2=GOOG&c3=AAPL&c4=FB
+class Portfolio(Resource):
+    def get(self):
+
+        c1 = request.args.get('c1')
+        c2 = request.args.get('c2')
+        c3 = request.args.get('c3')
+        c4 = request.args.get('c4')
+        # startDate = request.args.get('start')
+
+        stock = [c1,c2,c3,c4]#['AMZN', 'GOOG', 'AAPL','FB']#['AAPL', 'GOOG','MSFT','GE', 'IBM']#['ZM','UBER','SWI','RNG','CRWD', 'WORK']
+        # ['AAPL', 'GE', 'GOOG', 'IBM']
+
+        data = yf.download(stock,start = '2019-01-27', end='2020-03-27')['Adj Close']
+
+        stock_ret = np.log(data/data.shift(1))
+
+        num_ports = 5000
+        all_weights = np.zeros((num_ports, len(data.columns)))
+        ret_arr = np.zeros(num_ports)
+        vol_arr = np.zeros(num_ports)
+        sharpe_arr = np.zeros(num_ports)
+
+        for ind in range(num_ports): 
+            weights = np.array(np.random.random(4)) 
+            weights = weights/np.sum(weights)  
+            
+            all_weights[ind,:] = weights
+            
+            ret_arr[ind] = np.sum((stock_ret.mean()*weights)*252)
+
+            vol_arr[ind] = np.sqrt(np.dot(weights.T,np.dot(stock_ret.cov()*252, weights)))
+
+            sharpe_arr[ind] = ret_arr[ind]/vol_arr[ind]
+
+        plt.figure(figsize=(8,7))
+        plt.scatter(vol_arr,ret_arr,c=sharpe_arr,cmap='plasma')
+        plt.colorbar(label='Sharpe Ratio')
+        plt.xlabel('Volatility')
+        plt.ylabel('Return')
+
+        plt.scatter(vol_arr[sharpe_arr.argmax()], ret_arr[sharpe_arr.argmax()], c='red', s=50, edgecolors='black')
+        plt.scatter(vol_arr[vol_arr.argmin()], ret_arr[vol_arr.argmin()], c='blue', s=50, edgecolors='black')
+
+        plt.show()
+        plt.savefig('portfolio.png', bbox_inches='tight')
+        plt.clf()
+
+        print(vol_arr[sharpe_arr.argmax()])
+        print(ret_arr[sharpe_arr.argmax()])
+        print(all_weights[sharpe_arr.argmax(),:])
+
+        my_json_string = json.dumps({'Max-Sharpe-Risk': vol_arr[sharpe_arr.argmax()], 'Max-Sharpe-Return': ret_arr[sharpe_arr.argmax()], 'Max-w1':all_weights[sharpe_arr.argmax(),0], 'Max-w2':all_weights[sharpe_arr.argmax(),1], 'Max-w3':all_weights[sharpe_arr.argmax(),2], 'Max-w4':all_weights[sharpe_arr.argmax(),3], 'Min-Risk': vol_arr[vol_arr.argmin()], 'Min-Risk-Return': ret_arr[vol_arr.argmin()], 'Min-w1':all_weights[vol_arr.argmin(),0], 'Min-w2':all_weights[vol_arr.argmin(),1], 'Min-w3':all_weights[vol_arr.argmin(),2], 'Min-w4':all_weights[vol_arr.argmin(),3]})
+
+        print(vol_arr[vol_arr.argmin()])
+        print(ret_arr[vol_arr.argmin()])
+        print(all_weights[vol_arr.argmin(),:])
+        return my_json_string
+
 # @app.route('/add')
 class Employees(Resource):
     def get(self):
@@ -92,7 +171,7 @@ class Employees(Resource):
         company = request.args.get('company')
         compare = request.args.get('compare')
 
-        df = yf.download(company, start = '2016-01-01', end='2020-03-28')
+        df = yf.download(company, start = '2016-01-01', end='2020-04-20')
 
         close_px = df['Adj Close']
         mavg = close_px.rolling(window=100).mean()
@@ -103,11 +182,11 @@ class Employees(Resource):
 
         print(df.tail())
 
-        import matplotlib.pyplot as plt
-        from matplotlib import style
+        # import matplotlib.pyplot as plt
+        # from matplotlib import style
 
-        # Adjusting the size of matplotlib
-        import matplotlib as mpl
+        # # Adjusting the size of matplotlib
+        # import matplotlib as mpl
         mpl.rc('figure', figsize=(8, 7))
         mpl.__version__
 
@@ -172,13 +251,13 @@ class Employees(Resource):
         plt.scatter(retscomp.mean(), retscomp.std())
         plt.xlabel('Expected returns')
         plt.ylabel('Risk')
-        for label, x, y in zip(retscomp.columns, retscomp.mean(), retscomp.std()):
-            plt.annotate(
-                label, 
-                xy = (x, y), xytext = (20, -20),
-                textcoords = 'offset points', ha = 'right', va = 'bottom',
-                bbox = dict(boxstyle = 'round,pad=0.5', fc = 'yellow', alpha = 0.5),
-                arrowprops = dict(arrowstyle = '->', connectionstyle = 'arc3,rad=0'))
+        # for label, x, y in zip(retscomp.columns, retscomp.mean(), retscomp.std()):
+        #     plt.annotate(
+        #         label, 
+        #         xy = (x, y), xytext = (20, -20),
+        #         textcoords = 'offset points', ha = 'right', va = 'bottom',
+        #         bbox = dict(boxstyle = 'round,pad=0.5', fc = 'yellow', alpha = 0.5),
+        #         arrowprops = dict(arrowstyle = '->', connectionstyle = 'arc3,rad=0'))
 
         # plt.show()
         plt.savefig('risk-ret-rate.png', bbox_inches='tight')
@@ -202,10 +281,10 @@ class Employees(Resource):
 
         dfreg['PCT_change'] = b / df['Open'] * 100.0
 
-        import math
-        import numpy as np
-        from sklearn import preprocessing, svm
-        from sklearn.model_selection import train_test_split
+        # import math
+        # import numpy as np
+        # from sklearn import preprocessing, svm
+        # from sklearn.model_selection import train_test_split
 
         # Drop missing value
         dfreg.fillna(value=-99999, inplace=True)
@@ -236,12 +315,12 @@ class Employees(Resource):
         # Separation of training and testing of model by cross validation train test split
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
-        from sklearn.linear_model import LinearRegression
-        from sklearn.neighbors import KNeighborsRegressor
+        # from sklearn.linear_model import LinearRegression
+        # from sklearn.neighbors import KNeighborsRegressor
 
-        from sklearn.linear_model import Ridge
-        from sklearn.preprocessing import PolynomialFeatures
-        from sklearn.pipeline import make_pipeline
+        # from sklearn.linear_model import Ridge
+        # from sklearn.preprocessing import PolynomialFeatures
+        # from sklearn.pipeline import make_pipeline
 
         # Linear regression
         clfreg = LinearRegression(n_jobs=-1)
@@ -295,7 +374,7 @@ class Employees(Resource):
         plt.clf()
 
 
-        from scipy.stats import norm
+        # from scipy.stats import norm
 
         # data = yf.download("AAPL", start = '2012-01-01', end='2017-01-01')['Adj Close']
 
@@ -315,7 +394,7 @@ class Employees(Resource):
         #choose number of runs to simulate - I have chosen 10,000
         for i in range(100):
             #create list of daily returns using random normal distribution
-            daily_returns=np.random.normal(mu/T,vol/math.sqrt(T),T)+1
+            daily_returns=np.random.normal((1+mu)**(1/T),vol/math.sqrt(T),T)
             
             #set starting price and create price series generated by above random daily returns
             price_list = [S]
@@ -340,9 +419,13 @@ class Employees(Resource):
         plt.savefig('histo.png', bbox_inches='tight')
         plt.clf()
 
+        print("Mean - ")
 
         #use numpy mean function to calculate the mean of the result
         print(round(np.mean(result),2))
+
+        mean = json.dumps({'mean': round(np.mean(result),2)})
+        return mean 
 
 # var=1
 # test='/test'+str(var)
@@ -357,10 +440,8 @@ api.add_resource(RRrate, '/RRrate')
 api.add_resource(Forecast, '/forecast') 
 api.add_resource(Monte, '/monte') 
 api.add_resource(Histo, '/histo') 
-
-
-
-
+api.add_resource(Portfolio, '/portfolio') 
+api.add_resource(PortfolioImage, '/portfolioimage') 
 
 
 if __name__ == '__main__':
