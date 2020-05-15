@@ -427,6 +427,10 @@ class Employees(Resource):
         mean = json.dumps({'mean': round(np.mean(result),2)})
         return mean 
 
+@app.route("/")
+def index():
+    return "<h1>Hello Azure!</h1>"
+
 # var=1
 # test='/test'+str(var)
 test='/test'
