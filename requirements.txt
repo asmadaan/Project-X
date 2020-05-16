@@ -21,3 +21,4 @@ preprocessing==0.1.13
 sphinx-rtd-theme==0.2.4
 multitasking==0.0.9
 yfinance==0.1.54
+wheel=0.34.2
