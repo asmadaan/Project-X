@@ -14,7 +14,7 @@ aniso8601==8.0.0
 flask-restful==0.3.8
 pytz==2020.1
 pandas==0.24.2
-lxml==4.5.0
+lxml==4.6.5
 pandas-datareader==0.8.1
 nltk==3.2.4
 preprocessing==0.1.13
